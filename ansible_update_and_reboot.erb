@@ -1,0 +1,58 @@
+<%#
+name: Ansible - Update And Reboot
+snippet: false
+model: JobTemplate
+job_category: Client Management
+provider_type: Ansible
+kind: job_template
+%>
+
+---
+# adapted from https://www.unixsysadmin.com/ansible-patch-reboot
+
+- name: Update and reboot
+  hosts: all
+  gather_facts: no
+  vars:
+    yum_name: "*"
+    yum_state:  latest
+
+  tasks:
+    - name: install yum-utils
+      yum:
+        name=yum-utils
+        state=latest
+
+    - name: upgrade packages via yum
+      yum:
+        name={{ yum_name }}
+        state={{ yum_state }}
+      register: yumcommandout
+
+    - name: Print errors if yum failed
+      debug:
+        msg: "yum command produced errors"
+      when: yumcommandout is not defined
+
+    - name: check to see if we need a reboot
+      command: needs-restarting --quiet --reboothint
+      register: result
+      ignore_errors: yes
+
+    - name: Reboot Server if Necessary
+      command: shutdown -r now "This reboot was triggered by Ansible"
+      become: true
+      async: 30
+      poll: 0
+      when: result.rc == 1
+
+    - name: Pausing to allow server to shutdown and terminate our SSH connection
+      pause: seconds=30
+      when: result.rc == 1
+
+    - name: Wait for reboot to complete and SSH to become available
+      local_action: wait_for host={{ inventory_hostname }} port=22
+        state=started delay=30 timeout=600
+      retries: 30
+      delay: 10
+      when: result.rc == 1
