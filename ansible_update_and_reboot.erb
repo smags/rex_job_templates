@@ -35,7 +35,7 @@ kind: job_template
       when: yumcommandout is not defined
 
     - name: check to see if we need a reboot
-      command: needs-restarting --quiet --reboothint
+      command: needs-restarting --reboothint
       register: result
       ignore_errors: yes
 
